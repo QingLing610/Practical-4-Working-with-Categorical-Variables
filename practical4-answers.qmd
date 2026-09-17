@@ -1,0 +1,453 @@
+---
+title: "Practical 4 Answers"
+subtitle: "GLMs: Working with categorical variables"
+author: "Your Name Here"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 2
+    code-fold: false
+    link-external-newwindow: true
+    link-external-icon: true
+editor: source
+---
+
+## Getting started
+
+```{r}
+#| label: setup
+#| message: false
+#| warning: false
+
+library(ggplot2)
+library(dplyr)
+library(readr)
+
+crickets <- read_csv("data/crickets.csv")
+crickets
+```
+
+## The Cricket dataset
+
+### Question 1
+
+Recreate the plot above using a colour scale for the species rather than plotting on separate facets.
+
+```{r}
+#| label: plot-colour
+
+crickets |>
+  ggplot(aes(x = temp, y = rate, colour = species)) +
+  geom_point() +
+  scale_x_continuous("Temperature (°C)") +
+  scale_y_continuous("Chirp rate") +
+  scale_colour_discrete("Species") +
+  ggtitle("Cricket chirp rate vs temperature by species") +
+  theme_bw()
+```
+
+> Colouring by species (rather than faceting) makes it much easier to see how the two species compare.
+
+## Linear modelling
+
+### Question 2
+
+Fit the one-way ANOVA model `rate ~ species`.
+
+```{r}
+#| label: anova-model
+
+anova_mod <- lm(rate ~ species, data = crickets)
+summary(anova_mod)
+```
+
+```text
+Call:
+lm(formula = rate ~ species, data = crickets)
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-20.486  -9.458  -1.729  13.342  22.271 
+
+Coefficients:
+                 Estimate Std. Error t value Pr(>|t|)    
+(Intercept)        85.586      3.316  25.807  < 2e-16 ***
+speciesO. niveus  -23.156      4.478  -5.171 1.58e-05 ***
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+Residual standard error: 12.41 on 29 degrees of freedom
+Multiple R-squared:  0.4797,    Adjusted R-squared:  0.4617 
+F-statistic: 26.74 on 1 and 29 DF,  p-value: 1.579e-05
+```
+
+> Note: A one-way ANOVA is a linear regression where the predictor is categorical.
+
+### Question 3
+
+Which level of `species` has been chosen as the reference category? How can you tell from the `lm()` output?
+
+> **`O. exclamationis`** is the reference category. In R, `lm()` defaults to treatment (dummy) coding for factors, which takes the *first level* of the factor as the baseline. Since it is dummy coding:
+>
+> - `β0` or `(Intercept)` is the mean estimate for the reference group (`O. exclamationis`)
+> - `β1` or `speciesO. niveus` is the mean difference between `speciesO. niveus` and the reference group.
+
+### Question 4
+
+Write out the full fitted model equation, defining all terms clearly.
+
+```math
+rate^i=85.59−23.16×1[speciesi=O.\ niveus]
+```
+
+- `rate^i` is the predicted chirp rate for observation `i`
+- `1[⋅]` is an indicator function equal to 1 if cricket `i` is *O. niveus* and 0 if not (i.e., *O. exclamationis* the reference level).
+
+> The mean rate for *O. exclamationis* is `85.59`, and the mean rate for *O. niveus* is `23.16` lower, which is `85.59−23.16=62.43`.
+
+### Question 5
+
+Calculate the estimated mean `rate` for each species using only the summary of the model. Confirm your results with the `predict()` function.
+
+```{r}
+#| label: estimated-means
+
+# By hand from the coefficients:
+intercept <- coef(anova_mod)["(Intercept)"]
+niveus_offset <- coef(anova_mod)["speciesO. niveus"]
+
+exclamationis_mean <- intercept
+niveus_mean <- intercept + niveus_offset
+
+c(exclamationis = exclamationis_mean, niveus = niveus_mean)
+```
+
+```text
+exclamationis.(Intercept)        niveus.(Intercept) 
+                 85.58571                  62.42941 
+```
+
+```{r}
+# Confirm with predict()
+predict(anova_mod, newdata = tibble(species = c("O. exclamationis", "O. niveus")))
+```
+
+```text
+       1        2 
+85.58571 62.42941 
+```
+
+> Both approaches agree: an estimated mean chirp rate of **85.59** for *O. exclamationis* and **62.43** for *O. niveus*. These are each species’ raw sample mean, since a one-way ANOVA with a single categorical predictor and no other covariates estimates group means directly.
+
+### Question 6
+
+Refit the model without a reference category. What sort of coding is this? Are the results the same?
+
+```{r}
+#| label: anova-no-intercept
+
+anova_mod_nointercept <- lm(rate ~ species - 1, data = crickets)
+summary(anova_mod_nointercept)
+```
+
+```text
+Call:
+lm(formula = rate ~ species - 1, data = crickets)
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-20.486  -9.458  -1.729  13.342  22.271 
+
+Coefficients:
+                        Estimate Std. Error t value Pr(>|t|)    
+speciesO. exclamationis   85.586      3.316   25.81   <2e-16 ***
+speciesO. niveus          62.429      3.010   20.74   <2e-16 ***
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+Residual standard error: 12.41 on 29 degrees of freedom
+Multiple R-squared:  0.9742,    Adjusted R-squared: 0.9725 
+F-statistic: 548.1 on 2 and 29 DF,  p-value: < 2.2e-16
+```
+
+> Removing the intercept (by including `- 1`) switches from treatment/dummy coding to **means/cell-means coding**. Comparing the two:
+>
+> - treatment/dummy coding: intercept (reference) plus an offset(s).
+> - means coding: each level of `species` gets its own coefficient, which *is* that group’s mean.
+>
+> Note that the underlying model (including fitted values, residuals, `R2`) is identical. The only change is the *parameterisation*.
+>
+> Don’t forget the other coding types mentioned so far: simple coding, deviation coding (sum-to-zero coding), and Helmert coding.
+
+## Adding temperature
+
+### Question 7
+
+Add the temperature term to the regression. Write out the mathematical equation for this model. Is this an additive ANCOVA model?
+
+> With the dummy coding and `O. exclamationis` as reference category. the mathematical model is
+
+```math
+ratei=β0+β1×tempi+β2×1[speciesi=O.\ niveus]+ϵi
+```
+
+> where `ϵi∼N(0,σ2)` is the error term. In R, we can fit this as
+
+```{r}
+#| label: ancova-model
+
+ancova_mod <- lm(rate ~ temp + species, data = crickets)
+summary(ancova_mod)
+```
+
+```text
+Call:
+lm(formula = rate ~ temp + species, data = crickets)
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-3.0128 -1.1296 -0.3912  0.9650  3.7800 
+
+Coefficients:
+                  Estimate Std. Error t value Pr(>|t|)    
+(Intercept)       -7.21091    2.55094  -2.827  0.00858 ** 
+temp               3.60275    0.09729  37.032  < 2e-16 ***
+speciesO. niveus -10.06529    0.73526 -13.689 6.27e-14 ***
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+Residual standard error: 1.786 on 28 degrees of freedom
+Multiple R-squared:  0.9896,    Adjusted R-squared: 0.9888 
+F-statistic: 1331 on 2 and 28 DF,  p-value: < 2.2e-16
+```
+
+> The fitted model is
+
+```math
+rate^i=−7.21+3.60×tempi−10.07×1[speciesi=O.\ niveus]
+```
+
+> Yes, even though we fitted using `lm`, this is an **additive ANCOVA model** with one continuous covariate (`temp`), one categorical factor (`species`), and no interaction between them. Geometrically, it fits two parallel regression lines (one per species) that share a common slope (3.60 chirps/°C) but have different intercepts, offset by a constant 10.07 chirps.
+
+### Question 8
+
+Plot the predictions of the model with an additive effect over the data. Is there evidence that the additive effect should be an interaction? Check by fitting the interaction model.
+
+```{r}
+#| label: additive-predictions
+
+crickets |>
+  mutate(pred_additive = predict(ancova_mod)) |>
+  ggplot(aes(x = temp, y = rate, colour = species)) +
+  geom_point() +
+  geom_line(aes(y = pred_additive)) +
+  scale_x_continuous("Temperature (°C)") +
+  scale_y_continuous("Chirp rate") +
+  scale_colour_discrete("Species") +
+  ggtitle("Additive ANCOVA fit") +
+  theme_bw()
+```
+
+> Fitting the model with an interaction between `temp` and `species` is done with the `*` term:
+
+```{r}
+#| label: interaction-model
+
+interaction_mod <- lm(rate ~ temp * species, data = crickets)
+summary(interaction_mod)
+```
+
+```text
+Call:
+lm(formula = rate ~ temp * species, data = crickets)
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-3.7031 -1.3417 -0.1235  0.8100  3.6330 
+
+Coefficients:
+                       Estimate Std. Error t value Pr(>|t|)    
+(Intercept)           -11.0408     4.1515  -2.659    0.013 *  
+temp                     3.7514     0.1601  23.429   <2e-16 ***
+speciesO. niveus        -4.3484     4.9617  -0.876    0.389    
+temp:speciesO. niveus  -0.2340     0.2009  -1.165    0.254    
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+Residual standard error: 1.775 on 27 degrees of freedom
+Multiple R-squared:  0.9901,    Adjusted R-squared: 0.989 
+F-statistic: 898.9 on 3 and 27 DF,  p-value: < 2.2e-16
+```
+
+> We can formally compare the models with
+
+```{r}
+anova(ancova_mod, interaction_mod)
+```
+
+```text
+Analysis of Variance Table
+
+Model 1: rate ~ temp + species
+Model 2: rate ~ temp * species
+  Res.Df    RSS Df Sum of Sq      F Pr(>F)
+1     28 89.350                         
+2     27 85.074  1    4.2758 1.357 0.2542
+```
+
+> The p-value (`0.2542`) of this test indicates that the interaction is not needed. Formally, the null hypothesis `H0:β3=0` (where `β3` is for the interaction effect `temp:speciesO. niveus`) is not rejected at the `α=0.05` level since `0.2542 > 0.05`.
+>
+> Visually we could already see this. The two **parallel** lines from the additive model already track each species’ points closely, and there’s no obvious systematic pattern that would suggest the slopes genuinely differ.
+
+### Question 9
+
+Why might a linear model be inappropriate for the data?
+
+> Though the linear ANCOVA fits this particular dataset very well (`R2≈0.99`):
+>
+> - **Chirp rate can’t be negative**, but a linear model will predict negative values of chirp rate for temperatures that are low enough.
+>
+> Careful use of the model (which is a very good predictor) will avoid any problems with this.
+
+## GLM with factors
+
+```{r}
+#| label: poisson-models
+
+model_wool <- glm(breaks ~ wool, data = warpbreaks, family = poisson(link = "log"))
+model_tension <- glm(breaks ~ tension, data = warpbreaks, family = poisson(link = "log"))
+model_wool_tension_add <- glm(breaks ~ wool + tension, data = warpbreaks, family = poisson(link = "log"))
+```
+
+### Question 10
+
+```{r}
+# Wool model
+summary(model_wool)
+```
+
+```text
+Call:
+glm(formula = breaks ~ wool, family = poisson(link = "log"), 
+    data = warpbreaks)
+
+Coefficients:
+            Estimate Std. Error z value Pr(>|z|)    
+(Intercept)  3.43518    0.03454  99.443  < 2e-16 ***
+woolB       -0.20599    0.05157  -3.994 6.49e-05 ***
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+(Dispersion parameter for poisson family taken to be 1)
+
+    Null deviance: 297.37  on 53  degrees of freedom
+Residual deviance: 281.33  on 52  degrees of freedom
+AIC: 560
+
+Number of Fisher Scoring iterations: 4
+```
+
+> The coefficients in `model_wool` represent
+>
+> - `(Intercept) = 3.435`, `woolB = -0.206`. On the log scale, wool A’s log-mean breaks is 3.435; wool B’s is 0.206 lower.
+> - Exponentiating to get back to counts scale: `exp(3.435)=31.0` mean breaks for wool A, and wool B’s mean is `exp(-0.206)=0.814` times that, i.e. **about 18.6% fewer breaks** for wool B (`31.0×0.814=25.3`).
+
+```{r}
+# Tension model
+summary(model_tension)
+```
+
+```text
+Call:
+glm(formula = breaks ~ tension, family = poisson(link = "log"), 
+    data = warpbreaks)
+
+Coefficients:
+            Estimate Std. Error z value Pr(>|z|)    
+(Intercept)  3.59426    0.03907  91.988  < 2e-16 ***
+tensionM    -0.32132    0.06027  -5.332 9.73e-08 ***
+tensionH    -0.51849    0.06396  -8.107 5.21e-16 ***
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+(Dispersion parameter for poisson family taken to be 1)
+
+    Null deviance: 297.37  on 53  degrees of freedom
+Residual deviance: 226.43  on 51  degrees of freedom
+AIC: 507.09
+
+Number of Fisher Scoring iterations: 4
+```
+
+> The coefficients in `model_tension` represent
+>
+> - `(Intercept) = 3.076` (Low), `tensionM = -0.321`, `tensionH = -0.518`.
+> - High tension has largest difference to low tension: `exp(-0.518)=0.596` times as many breaks as Low tension (a **40% decrease**).
+
+```{r}
+# Additive wool + tension model
+summary(model_wool_tension_add)
+```
+
+```text
+Call:
+glm(formula = breaks ~ wool + tension, family = poisson(link = "log"), 
+    data = warpbreaks)
+
+Coefficients:
+            Estimate Std. Error z value Pr(>|z|)    
+(Intercept)  3.69196    0.04541  81.302  < 2e-16 ***
+woolB       -0.20599    0.05157  -3.994 6.49e-05 ***
+tensionM    -0.32132    0.06027  -5.332 9.73e-08 ***
+tensionH    -0.51849    0.06396  -8.107 5.21e-16 ***
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+(Dispersion parameter for poisson family taken to be 1)
+
+    Null deviance: 297.37  on 53  degrees of freedom
+Residual deviance: 210.39  on 50  degrees of freedom
+AIC: 493.06
+
+Number of Fisher Scoring iterations: 4
+```
+
+> The coefficients in `model_wool_tension_add` represent:
+>
+> - `(Intercept) = 3.173` (`tensionL` and `woolA` reference), `woolB = -0.206`, `tensionM = -0.321`, `tensionH = -0.518`.
+> - The `wool` and `tension` coefficients are (as expected for an additive model) essentially unchanged from their single-predictor models. The effects (additive on log scale, multiplicative on raw/count scale) are interpreted *holding the other factors fixed*: at any given tension, wool B has 18.6% fewer breaks than wool A; at any given wool, Medium tension has 27% less breaks than Low whilst Medium has 40% less.
+
+### Question 11
+
+Write out the fitted model equations.
+
+`model_wool`
+
+```math
+log(breaks^i)=3.435−0.206×1[wooli=B]
+```
+
+`model_tension`
+
+```math
+log(breaks^i)=3.594−0.321×1[tensioni=M]−0.519×1[tensioni=H]
+```
+
+`model_wool_tension_add`
+
+```math
+log(breaks^i)=3.692−0.206×1[wooli=B]−0.321×1[tensioni=M]−0.519×1[tensioni=H]
+```
+
+> with reference levels `wool = A` and/or `tension = L` in each case.
+>
+> These models can also be written on the raw (expected count) scale. For example the last model would be
+
+```math
+breaks^i=exp(3.692)×exp(−0.206)1[wooli=B]×exp(−0.321)1[tensioni=M]×exp(−0.519)1[tensioni=H]
+```
+
+## References
+
+McDonald, John H. 2014. *Handbook of Biological Statistics*. 3rd ed. Sparky House Publishing.
