@@ -62,26 +62,6 @@ anova_mod <- lm(rate ~ species, data = crickets)
 summary(anova_mod)
 ```
 
-```text
-Call:
-lm(formula = rate ~ species, data = crickets)
-
-Residuals:
-    Min      1Q  Median      3Q     Max 
--20.486  -9.458  -1.729  13.342  22.271 
-
-Coefficients:
-                 Estimate Std. Error t value Pr(>|t|)    
-(Intercept)        85.586      3.316  25.807  < 2e-16 ***
-speciesO. niveus  -23.156      4.478  -5.171 1.58e-05 ***
----
-Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-
-Residual standard error: 12.41 on 29 degrees of freedom
-Multiple R-squared:  0.4797,    Adjusted R-squared:  0.4617 
-F-statistic: 26.74 on 1 and 29 DF,  p-value: 1.579e-05
-```
-
 > Note: A one-way ANOVA is a linear regression where the predictor is categorical.
 
 ### Question 3
@@ -123,19 +103,9 @@ niveus_mean <- intercept + niveus_offset
 c(exclamationis = exclamationis_mean, niveus = niveus_mean)
 ```
 
-```text
-exclamationis.(Intercept)        niveus.(Intercept) 
-                 85.58571                  62.42941 
-```
-
 ```{r}
 # Confirm with predict()
 predict(anova_mod, newdata = tibble(species = c("O. exclamationis", "O. niveus")))
-```
-
-```text
-       1        2 
-85.58571 62.42941 
 ```
 
 > Both approaches agree: an estimated mean chirp rate of **85.59** for *O. exclamationis* and **62.43** for *O. niveus*. These are each species’ raw sample mean, since a one-way ANOVA with a single categorical predictor and no other covariates estimates group means directly.
@@ -149,26 +119,6 @@ Refit the model without a reference category. What sort of coding is this? Are t
 
 anova_mod_nointercept <- lm(rate ~ species - 1, data = crickets)
 summary(anova_mod_nointercept)
-```
-
-```text
-Call:
-lm(formula = rate ~ species - 1, data = crickets)
-
-Residuals:
-    Min      1Q  Median      3Q     Max 
--20.486  -9.458  -1.729  13.342  22.271 
-
-Coefficients:
-                        Estimate Std. Error t value Pr(>|t|)    
-speciesO. exclamationis   85.586      3.316   25.81   <2e-16 ***
-speciesO. niveus          62.429      3.010   20.74   <2e-16 ***
----
-Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-
-Residual standard error: 12.41 on 29 degrees of freedom
-Multiple R-squared:  0.9742,    Adjusted R-squared: 0.9725 
-F-statistic: 548.1 on 2 and 29 DF,  p-value: < 2.2e-16
 ```
 
 > Removing the intercept (by including `- 1`) switches from treatment/dummy coding to **means/cell-means coding**. Comparing the two:
@@ -199,27 +149,6 @@ ratei=β0+β1×tempi+β2×1[speciesi=O.\ niveus]+ϵi
 
 ancova_mod <- lm(rate ~ temp + species, data = crickets)
 summary(ancova_mod)
-```
-
-```text
-Call:
-lm(formula = rate ~ temp + species, data = crickets)
-
-Residuals:
-    Min      1Q  Median      3Q     Max 
--3.0128 -1.1296 -0.3912  0.9650  3.7800 
-
-Coefficients:
-                  Estimate Std. Error t value Pr(>|t|)    
-(Intercept)       -7.21091    2.55094  -2.827  0.00858 ** 
-temp               3.60275    0.09729  37.032  < 2e-16 ***
-speciesO. niveus -10.06529    0.73526 -13.689 6.27e-14 ***
----
-Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-
-Residual standard error: 1.786 on 28 degrees of freedom
-Multiple R-squared:  0.9896,    Adjusted R-squared: 0.9888 
-F-statistic: 1331 on 2 and 28 DF,  p-value: < 2.2e-16
 ```
 
 > The fitted model is
@@ -258,44 +187,11 @@ interaction_mod <- lm(rate ~ temp * species, data = crickets)
 summary(interaction_mod)
 ```
 
-```text
-Call:
-lm(formula = rate ~ temp * species, data = crickets)
-
-Residuals:
-    Min      1Q  Median      3Q     Max 
--3.7031 -1.3417 -0.1235  0.8100  3.6330 
-
-Coefficients:
-                       Estimate Std. Error t value Pr(>|t|)    
-(Intercept)           -11.0408     4.1515  -2.659    0.013 *  
-temp                     3.7514     0.1601  23.429   <2e-16 ***
-speciesO. niveus        -4.3484     4.9617  -0.876    0.389    
-temp:speciesO. niveus  -0.2340     0.2009  -1.165    0.254    
----
-Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-
-Residual standard error: 1.775 on 27 degrees of freedom
-Multiple R-squared:  0.9901,    Adjusted R-squared: 0.989 
-F-statistic: 898.9 on 3 and 27 DF,  p-value: < 2.2e-16
-```
-
 > We can formally compare the models with
 
 ```{r}
 anova(ancova_mod, interaction_mod)
 ```
-
-```text
-Analysis of Variance Table
-
-Model 1: rate ~ temp + species
-Model 2: rate ~ temp * species
-  Res.Df    RSS Df Sum of Sq      F Pr(>F)
-1     28 89.350                         
-2     27 85.074  1    4.2758 1.357 0.2542
-```
-
 > The p-value (`0.2542`) of this test indicates that the interaction is not needed. Formally, the null hypothesis `H0:β3=0` (where `β3` is for the interaction effect `temp:speciesO. niveus`) is not rejected at the `α=0.05` level since `0.2542 > 0.05`.
 >
 > Visually we could already see this. The two **parallel** lines from the additive model already track each species’ points closely, and there’s no obvious systematic pattern that would suggest the slopes genuinely differ.
@@ -327,27 +223,6 @@ model_wool_tension_add <- glm(breaks ~ wool + tension, data = warpbreaks, family
 summary(model_wool)
 ```
 
-```text
-Call:
-glm(formula = breaks ~ wool, family = poisson(link = "log"), 
-    data = warpbreaks)
-
-Coefficients:
-            Estimate Std. Error z value Pr(>|z|)    
-(Intercept)  3.43518    0.03454  99.443  < 2e-16 ***
-woolB       -0.20599    0.05157  -3.994 6.49e-05 ***
----
-Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-
-(Dispersion parameter for poisson family taken to be 1)
-
-    Null deviance: 297.37  on 53  degrees of freedom
-Residual deviance: 281.33  on 52  degrees of freedom
-AIC: 560
-
-Number of Fisher Scoring iterations: 4
-```
-
 > The coefficients in `model_wool` represent
 >
 > - `(Intercept) = 3.435`, `woolB = -0.206`. On the log scale, wool A’s log-mean breaks is 3.435; wool B’s is 0.206 lower.
@@ -358,28 +233,6 @@ Number of Fisher Scoring iterations: 4
 summary(model_tension)
 ```
 
-```text
-Call:
-glm(formula = breaks ~ tension, family = poisson(link = "log"), 
-    data = warpbreaks)
-
-Coefficients:
-            Estimate Std. Error z value Pr(>|z|)    
-(Intercept)  3.59426    0.03907  91.988  < 2e-16 ***
-tensionM    -0.32132    0.06027  -5.332 9.73e-08 ***
-tensionH    -0.51849    0.06396  -8.107 5.21e-16 ***
----
-Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-
-(Dispersion parameter for poisson family taken to be 1)
-
-    Null deviance: 297.37  on 53  degrees of freedom
-Residual deviance: 226.43  on 51  degrees of freedom
-AIC: 507.09
-
-Number of Fisher Scoring iterations: 4
-```
-
 > The coefficients in `model_tension` represent
 >
 > - `(Intercept) = 3.076` (Low), `tensionM = -0.321`, `tensionH = -0.518`.
@@ -388,29 +241,6 @@ Number of Fisher Scoring iterations: 4
 ```{r}
 # Additive wool + tension model
 summary(model_wool_tension_add)
-```
-
-```text
-Call:
-glm(formula = breaks ~ wool + tension, family = poisson(link = "log"), 
-    data = warpbreaks)
-
-Coefficients:
-            Estimate Std. Error z value Pr(>|z|)    
-(Intercept)  3.69196    0.04541  81.302  < 2e-16 ***
-woolB       -0.20599    0.05157  -3.994 6.49e-05 ***
-tensionM    -0.32132    0.06027  -5.332 9.73e-08 ***
-tensionH    -0.51849    0.06396  -8.107 5.21e-16 ***
----
-Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-
-(Dispersion parameter for poisson family taken to be 1)
-
-    Null deviance: 297.37  on 53  degrees of freedom
-Residual deviance: 210.39  on 50  degrees of freedom
-AIC: 493.06
-
-Number of Fisher Scoring iterations: 4
 ```
 
 > The coefficients in `model_wool_tension_add` represent:
